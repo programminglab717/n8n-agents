@@ -1,0 +1,39 @@
+# Runs the read-only ReachInbox MCP gateway.
+#
+#   cp .env.example .env   # fill in the two keys
+#   docker compose up -d --build
+#
+# Self-hosted n8n on the same Docker network: use http://reachinbox-mcp:8000/mcp
+# n8n Cloud: put this behind HTTPS (see Caddyfile) and use https://<your-domain>/mcp
+services:
+  reachinbox-mcp:
+    build: .
+    container_name: reachinbox-mcp
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8000:8000"   # local only; Caddy or your n8n network reaches it
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Optional HTTPS front door for n8n Cloud. Remove if n8n runs next to this.
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      MCP_DOMAIN: ${MCP_DOMAIN:-mcp.example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - reachinbox-mcp
+    profiles: ["https"]
+
+volumes:
+  caddy_data:
